@@ -98,6 +98,12 @@ export default function UniverseCanvas({
     cameraInitialized.current = true;
   }, [size.width, size.height, initialDistance, graphData]);
 
+  // Re-paint node materials when inquiry selection changes so Status-Active
+  // (#22D3EE via APP_CONFIG.ui.colors.active) applies and prior nodes revert.
+  useEffect(() => {
+    fgRef.current?.refresh();
+  }, [activeNodeId, graphData]);
+
   return (
     <div
       ref={containerRef}
