@@ -7,6 +7,7 @@ import {
   APP_CONFIG,
   UNIVERSE_SEED_QUERY_PARAM,
 } from "@/app.config";
+import MentorChatPanel from "@/components/MentorChatPanel";
 import UniverseProvider, {
   useUniverseStore,
 } from "@/components/UniverseProvider";
@@ -46,17 +47,12 @@ function UniverseShell() {
           onNodeSelect={selectNode}
         />
       </section>
-      <aside
-        className="min-h-screen shrink-0 border-l border-border-subtle bg-surface-elevated p-4"
-        style={{ width: APP_CONFIG.ui.sidebarWidth }}
-        aria-label="Mentor panel placeholder"
-      >
-        <p className="text-sm text-text-muted">
-          {selectedNode
-            ? `Selected: ${selectedNode.label}`
-            : "Select a node to begin."}
-        </p>
-      </aside>
+      <div className="min-h-screen shrink-0">
+        <MentorChatPanel
+          activeNodeId={selectedNodeId}
+          activeNodeLabel={selectedNode?.label ?? null}
+        />
+      </div>
     </main>
   );
 }
