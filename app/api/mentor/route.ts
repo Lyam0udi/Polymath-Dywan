@@ -20,6 +20,7 @@ interface MentorRequestBody {
 /**
  * POST /api/mentor — stream Socratic mentor replies via Vercel AI SDK.
  * Contract: `{ messages, activeNode }` → data stream for `useChat`.
+ * System message is always `socraticPrompt` from `lib/ai/prompts.ts` (APP_CONFIG SSOT).
  */
 export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -65,15 +66,22 @@ export async function POST(request: Request) {
   const model =
     process.env.DEFAULT_MODEL?.trim() || APP_CONFIG.env.DEFAULT_MODEL;
 
+  // Sole system message: APP_CONFIG.ai.socraticPrompt via prompts re-export.
+  // Includes "Never give direct answers" and mastery/reveal tokens.
+  // Strip any client-sent system roles so the Socratic contract cannot be overridden.
   const system = `${socraticPrompt.trim()}
 
 Active concept under discussion: "${activeNode.label}" (id: ${activeNode.id}).
 Focus all Socratic inquiry on this concept.`;
 
+  const conversation = messages
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map(({ role, content }) => ({ role, content }));
+
   const result = streamText({
     model: openai(model),
     system,
-    messages,
+    messages: conversation,
   });
 
   return createMentorStreamResponse(result);
