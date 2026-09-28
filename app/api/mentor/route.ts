@@ -3,6 +3,7 @@ import { streamText, type Message } from "ai";
 import { NextResponse } from "next/server";
 import { APP_CONFIG } from "@/app.config";
 import { socraticPrompt } from "@/lib/ai/prompts";
+import { createMentorStreamResponse } from "@/lib/ai/stream-handler";
 
 /** Active graph node context for the Socratic loop. */
 interface MentorActiveNode {
@@ -75,5 +76,5 @@ Focus all Socratic inquiry on this concept.`;
     messages,
   });
 
-  return result.toDataStreamResponse();
+  return createMentorStreamResponse(result);
 }
