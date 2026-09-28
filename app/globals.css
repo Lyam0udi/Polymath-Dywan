@@ -1,7 +1,6 @@
-@import "tailwindcss";
-
-/* Primary typeface (design system): Inter */
+/* Primary typeface (design system): Inter — must precede other @imports / rules */
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
 
 /*
   Design tokens aligned with APP_CONFIG.ui + Deterministic Design System.
