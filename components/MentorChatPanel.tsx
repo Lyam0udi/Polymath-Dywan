@@ -46,7 +46,9 @@ export function MentorChatPanel({
     recordFailure,
     reset,
     revealAvailable,
+    failedAttempts,
     lastToken,
+    markMastered,
   } = useSocraticLogic();
 
   const {
@@ -91,6 +93,11 @@ export function MentorChatPanel({
 
     const token = processStream(last.content, activeNodeId);
 
+    // [REVEALED] → unlock the gated node (same path as explicit Reveal click).
+    if (token === REVEALED_TOKEN) {
+      markMastered(activeNodeId);
+    }
+
     if (isStreaming) return;
     if (countedFailureIdsRef.current.has(last.id)) return;
 
@@ -98,11 +105,19 @@ export function MentorChatPanel({
 
     // Mastery clears the failure path inside processStream; do not count it.
     if (token === MASTERED_TOKEN) return;
-    // [REVEALED] already opens the valve inside processStream.
+    // [REVEALED] opens the valve + unlock; do not count as another failure.
     if (token === REVEALED_TOKEN) return;
 
+    // Every settled non-mastery mentor reply increments toward SAFETY_VALVE_ATTEMPTS.
     recordFailure();
-  }, [messages, isStreaming, processStream, recordFailure, activeNodeId]);
+  }, [
+    messages,
+    isStreaming,
+    processStream,
+    recordFailure,
+    markMastered,
+    activeNodeId,
+  ]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -116,8 +131,17 @@ export function MentorChatPanel({
     handleSubmit(event);
   }
 
+  /**
+   * Safety valve: after SAFETY_VALVE_ATTEMPTS failures, Reveal applies the
+   * [REVEALED] protocol and unlocks the node (mastered) so gating can proceed.
+   */
   async function onReveal() {
     if (!hasActiveNode || !revealAvailable || isStreaming) return;
+
+    // Trigger [REVEALED] token logic, then unlock the node for Socratic gating.
+    processStream(REVEALED_TOKEN, activeNodeId);
+    markMastered(activeNodeId);
+
     await append({
       role: "user",
       content:
@@ -126,7 +150,11 @@ export function MentorChatPanel({
   }
 
   const showReveal =
-    hasActiveNode && revealAvailable && lastToken !== MASTERED_TOKEN;
+    hasActiveNode &&
+    revealAvailable &&
+    failedAttempts >= safetyValve &&
+    lastToken !== MASTERED_TOKEN &&
+    lastToken !== REVEALED_TOKEN;
 
   return (
     <aside
@@ -134,6 +162,7 @@ export function MentorChatPanel({
       style={{ width: APP_CONFIG.ui.sidebarWidth }}
       aria-label="Socratic mentor chat"
       data-active-node={activeNodeId ?? undefined}
+      data-failed-attempts={hasActiveNode ? String(failedAttempts) : undefined}
       data-reveal-available={showReveal ? "true" : undefined}
     >
       <header className="shrink-0 border-b border-border-subtle px-4 py-3">
