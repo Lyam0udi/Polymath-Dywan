@@ -1,10 +1,13 @@
 /* Tailwind v4 entry — Inter is applied on <body> via next/font in app/layout.tsx */
 @import "tailwindcss";
+/* Load JS theme (content globs + APP_CONFIG-backed tokens) for production builds */
+@config "../tailwind.config.ts";
 
 /*
   Design tokens aligned with APP_CONFIG.ui + Deterministic Design System.
   Tailwind v4 @theme → utility classes (bg-mastered, text-muted, w-sidebar, …).
   :root mirrors the same values for non-Tailwind consumers (e.g. force-graph).
+  Keep hex values identical to tailwind.config.ts (Zero Drift).
 */
 @theme {
   /* Status / APP_CONFIG.ui.colors (Zero Drift) */
