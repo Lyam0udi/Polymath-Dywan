@@ -13,22 +13,31 @@ export const GRAPH_STORAGE_KEY = "polymath-dywan-graph" as const;
 
 const nodeStatusSchema = z.enum(["foggy", "mastered", "active"]);
 
-const graphNodeSchema = z.object({
-  id: z.string().min(1),
-  label: z.string().min(1),
-  status: nodeStatusSchema,
-});
+const graphNodeSchema = z
+  .object({
+    id: z.string().min(1),
+    label: z.string().min(1),
+    status: nodeStatusSchema,
+  })
+  .strict();
 
-const graphLinkSchema = z.object({
-  source: z.string().min(1),
-  target: z.string().min(1),
-});
+const graphLinkSchema = z
+  .object({
+    source: z.string().min(1),
+    target: z.string().min(1),
+  })
+  .strict();
 
-/** Zod schema for persisted GraphData — corrupt payloads fail closed to seed. */
-export const graphDataSchema = z.object({
-  nodes: z.array(graphNodeSchema),
-  links: z.array(graphLinkSchema),
-});
+/**
+ * Zod schema for persisted GraphData.
+ * Production: at least one node; unknown keys fail closed (corrupt / hand-edited JSON).
+ */
+export const graphDataSchema = z
+  .object({
+    nodes: z.array(graphNodeSchema).min(1),
+    links: z.array(graphLinkSchema),
+  })
+  .strict();
 
 export type PersistedGraphData = z.infer<typeof graphDataSchema>;
 
@@ -71,14 +80,28 @@ export function enforceGraphIntegrity(data: GraphData): GraphData {
 }
 
 /**
+ * Validate an unknown payload as GraphData.
+ * Returns `null` when Zod fails or integrity leaves zero nodes (never throws).
+ */
+export function parsePersistedGraph(raw: unknown): GraphData | null {
+  const parsed = graphDataSchema.safeParse(raw);
+  if (!parsed.success) return null;
+
+  const intact = enforceGraphIntegrity(parsed.data);
+  if (intact.nodes.length === 0) return null;
+
+  // Re-check after sanitize — integrity may have changed shape slightly.
+  const revalidated = graphDataSchema.safeParse(intact);
+  return revalidated.success ? intact : null;
+}
+
+/**
  * Compile-time seed from `data/local-graph.json`.
  * Invalid / empty seed falls back to APP_CONFIG.metadata.seedTopic root.
  */
 export function getSeedGraph(): GraphData {
-  const parsed = graphDataSchema.safeParse(seedGraphJson);
-  if (parsed.success && parsed.data.nodes.length > 0) {
-    return enforceGraphIntegrity(parsed.data);
-  }
+  const fromFile = parsePersistedGraph(seedGraphJson);
+  if (fromFile) return fromFile;
 
   return {
     nodes: [
@@ -103,13 +126,16 @@ export function clearGraphStorage(): void {
 }
 
 /**
- * Persist graph state. Always writes integrity-sanitized JSON.
+ * Persist graph state. Always writes integrity-sanitized, Zod-valid JSON.
+ * Refuses to write when the payload cannot be validated (never stores corrupt data).
  * SSR-safe no-op when `window` is unavailable.
  */
 export function saveGraphToStorage(graph: GraphData): void {
   if (typeof window === "undefined") return;
 
-  const safe = enforceGraphIntegrity(graph);
+  const safe = parsePersistedGraph(enforceGraphIntegrity(graph));
+  if (!safe) return;
+
   try {
     window.localStorage.setItem(GRAPH_STORAGE_KEY, JSON.stringify(safe));
   } catch {
@@ -123,9 +149,10 @@ export function saveGraphToStorage(graph: GraphData): void {
  * → clear key and reset to that same seed (fail closed, never crash).
  */
 export function loadGraphFromStorage(fallbackSeed?: GraphData): GraphData {
-  const seed = fallbackSeed
-    ? enforceGraphIntegrity(fallbackSeed)
-    : getSeedGraph();
+  const seedCandidate = fallbackSeed
+    ? parsePersistedGraph(enforceGraphIntegrity(fallbackSeed))
+    : null;
+  const seed = seedCandidate ?? getSeedGraph();
 
   if (typeof window === "undefined") {
     return seed;
@@ -144,15 +171,15 @@ export function loadGraphFromStorage(fallbackSeed?: GraphData): GraphData {
 
   try {
     const json: unknown = JSON.parse(raw);
-    const parsed = graphDataSchema.safeParse(json);
+    const validated = parsePersistedGraph(json);
 
-    if (!parsed.success) {
+    if (!validated) {
       clearGraphStorage();
       saveGraphToStorage(seed);
       return seed;
     }
 
-    return enforceGraphIntegrity(parsed.data);
+    return validated;
   } catch {
     // JSON.parse threw or storage threw — Zod reset path.
     clearGraphStorage();

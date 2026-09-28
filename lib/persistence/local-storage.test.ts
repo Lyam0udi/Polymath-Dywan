@@ -7,6 +7,7 @@ import {
   getSeedGraph,
   graphDataSchema,
   loadGraphFromStorage,
+  parsePersistedGraph,
   saveGraphToStorage,
 } from "./local-storage";
 
@@ -87,6 +88,36 @@ describe("lib/persistence/local-storage", () => {
           links: [],
         }).success,
       ).toBe(false);
+      expect(
+        graphDataSchema.safeParse({
+          nodes: [],
+          links: [],
+        }).success,
+      ).toBe(false);
+      expect(
+        graphDataSchema.safeParse({
+          nodes: [{ id: "x", label: "X", status: "foggy", extra: true }],
+          links: [],
+        }).success,
+      ).toBe(false);
+    });
+  });
+
+  describe("parsePersistedGraph", () => {
+    it("returns GraphData for valid payloads and null for corrupt ones", () => {
+      expect(
+        parsePersistedGraph({
+          nodes: [{ id: "root", label: "AI", status: "active" }],
+          links: [],
+        }),
+      ).toEqual({
+        nodes: [{ id: "root", label: "AI", status: "active" }],
+        links: [],
+      });
+
+      expect(parsePersistedGraph({ nodes: [], links: [] })).toBeNull();
+      expect(parsePersistedGraph("{not-json")).toBeNull();
+      expect(parsePersistedGraph(undefined)).toBeNull();
     });
   });
 
@@ -191,6 +222,15 @@ describe("lib/persistence/local-storage", () => {
       const rewritten = window.localStorage.getItem(GRAPH_STORAGE_KEY);
       expect(rewritten).not.toBeNull();
       expect(JSON.parse(rewritten!)).toEqual(seed);
+    });
+
+    it("resets to seed when stored graph has zero nodes", () => {
+      window.localStorage.setItem(
+        GRAPH_STORAGE_KEY,
+        JSON.stringify({ nodes: [], links: [] }),
+      );
+
+      expect(loadGraphFromStorage()).toEqual(getSeedGraph());
     });
 
     it("resets to seed when stored value is invalid JSON", () => {
