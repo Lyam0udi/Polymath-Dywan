@@ -3,6 +3,11 @@
 import { useChat } from "ai/react";
 import { useEffect, useRef, type FormEvent } from "react";
 import { APP_CONFIG } from "@/app.config";
+import {
+  MASTERED_TOKEN,
+  REVEALED_TOKEN,
+  useSocraticLogic,
+} from "@/hooks/useSocraticLogic";
 
 export interface MentorChatPanelProps {
   /** Currently selected graph node id, if any. */
@@ -11,10 +16,20 @@ export interface MentorChatPanelProps {
   activeNodeLabel?: string | null;
 }
 
+/** Hide protocol tokens from the visible transcript. */
+function displayMentorContent(content: string): string {
+  return content
+    .replaceAll(MASTERED_TOKEN, "")
+    .replaceAll(REVEALED_TOKEN, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 /**
  * Socratic mentor chat sidebar.
  * Streams replies via Vercel AI SDK `useChat` → POST `/api/mentor`.
- * Captures user reasoning against the active graph node.
+ * Applies `[MASTERED]` / `[REVEALED]` via `useSocraticLogic` and shows the
+ * safety-valve Reveal control after `SAFETY_VALVE_ATTEMPTS` failed replies.
  */
 export function MentorChatPanel({
   activeNodeId = null,
@@ -27,10 +42,19 @@ export function MentorChatPanel({
     activeNodeLabel.length > 0;
 
   const {
+    processStream,
+    recordFailure,
+    reset,
+    revealAvailable,
+    lastToken,
+  } = useSocraticLogic();
+
+  const {
     messages,
     input,
     handleInputChange,
     handleSubmit,
+    append,
     isLoading,
     error,
     status,
@@ -49,11 +73,40 @@ export function MentorChatPanel({
   });
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  /** Assistant message ids already counted toward the safety valve. */
+  const countedFailureIdsRef = useRef<Set<string>>(new Set());
   const isStreaming = status === "streaming" || isLoading;
+  const safetyValve = APP_CONFIG.features.SAFETY_VALVE_ATTEMPTS;
+
+  // New concept → clear attempt counter / tokens (useChat id remounts messages).
+  useEffect(() => {
+    countedFailureIdsRef.current = new Set();
+    reset();
+  }, [activeNodeId, reset]);
+
+  // Live token scan while streaming; on settle, count non-mastery replies as failures.
+  useEffect(() => {
+    const last = messages.at(-1);
+    if (!last || last.role !== "assistant" || !last.content) return;
+
+    const token = processStream(last.content, activeNodeId);
+
+    if (isStreaming) return;
+    if (countedFailureIdsRef.current.has(last.id)) return;
+
+    countedFailureIdsRef.current.add(last.id);
+
+    // Mastery clears the failure path inside processStream; do not count it.
+    if (token === MASTERED_TOKEN) return;
+    // [REVEALED] already opens the valve inside processStream.
+    if (token === REVEALED_TOKEN) return;
+
+    recordFailure();
+  }, [messages, isStreaming, processStream, recordFailure, activeNodeId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isStreaming]);
+  }, [messages, isStreaming, revealAvailable]);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     if (!hasActiveNode || isStreaming || !input.trim()) {
@@ -63,12 +116,25 @@ export function MentorChatPanel({
     handleSubmit(event);
   }
 
+  async function onReveal() {
+    if (!hasActiveNode || !revealAvailable || isStreaming) return;
+    await append({
+      role: "user",
+      content:
+        "I have struggled enough with this concept. Please reveal the answer and use the [REVEALED] token.",
+    });
+  }
+
+  const showReveal =
+    hasActiveNode && revealAvailable && lastToken !== MASTERED_TOKEN;
+
   return (
     <aside
       className="flex h-full min-h-screen flex-col border-l border-border-subtle bg-surface-elevated text-text-high-contrast"
       style={{ width: APP_CONFIG.ui.sidebarWidth }}
       aria-label="Socratic mentor chat"
       data-active-node={activeNodeId ?? undefined}
+      data-reveal-available={showReveal ? "true" : undefined}
     >
       <header className="shrink-0 border-b border-border-subtle px-4 py-3">
         <h2 className="text-sm font-medium tracking-wide text-text-high-contrast">
@@ -102,6 +168,10 @@ export function MentorChatPanel({
 
         {messages.map((message) => {
           const isUser = message.role === "user";
+          const body = isUser
+            ? message.content
+            : displayMentorContent(message.content);
+          if (!body && !isUser) return null;
           return (
             <div
               key={message.id}
@@ -117,7 +187,7 @@ export function MentorChatPanel({
                     : "border border-border-subtle bg-background text-text-high-contrast"
                 }`}
               >
-                {message.content}
+                {body}
               </div>
             </div>
           );
@@ -136,13 +206,44 @@ export function MentorChatPanel({
           )}
 
         {error && (
-          <p className="rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm text-foggy" role="alert">
+          <p
+            className="rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm text-foggy"
+            role="alert"
+          >
             {error.message || "Mentor stream failed. Try again."}
+          </p>
+        )}
+
+        {lastToken === MASTERED_TOKEN && (
+          <p
+            className="rounded-lg border border-mastered/40 bg-background px-3 py-2 text-sm text-mastered"
+            role="status"
+          >
+            Concept mastered. The node is now unlocked in the universe.
           </p>
         )}
 
         <div ref={bottomRef} />
       </div>
+
+      {showReveal && (
+        <div className="shrink-0 border-t border-border-subtle px-4 pt-3">
+          <button
+            type="button"
+            onClick={() => {
+              void onReveal();
+            }}
+            disabled={isStreaming}
+            className="w-full rounded-lg border border-active/50 bg-background px-3 py-2 text-sm font-semibold text-active transition hover:bg-active/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-active disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label={`Reveal answer after ${safetyValve} unsuccessful attempts`}
+          >
+            Reveal answer
+          </button>
+          <p className="mt-1.5 text-center text-[10px] text-text-muted">
+            Shown after {safetyValve} unsuccessful attempts
+          </p>
+        </div>
+      )}
 
       <form
         onSubmit={onSubmit}
