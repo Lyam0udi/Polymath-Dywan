@@ -1,24 +1,36 @@
 import { describe, expect, it } from "vitest";
 import {
   APP_CONFIG,
+  GRAPH_EXPAND_ENDPOINT,
+  STATUS_COLOR_TOKENS,
   UNIVERSE_SEED_QUERY_PARAM,
   buildUniverseHref,
+  resolveStatusColor,
+  shouldTriggerExpansionOnMastery,
 } from "./app.config";
 
 describe("APP_CONFIG", () => {
-  it("exposes the documented seed topic and Zero Drift mastered color", () => {
+  it("exposes Status-Mastered / Status-Foggy Zero Drift color tokens", () => {
     expect(APP_CONFIG.metadata.seedTopic).toBe("Artificial Intelligence");
-    expect(APP_CONFIG.ui.colors.mastered).toBe("#10B981");
+    // Status-Mastered — mastered node color property
+    expect(APP_CONFIG.ui.colors.mastered).toBe("#10b981");
+    expect(STATUS_COLOR_TOKENS.mastered).toBe("#10b981");
+    expect(resolveStatusColor("mastered")).toBe("#10b981");
+    // Status-Foggy — expansion children
     expect(APP_CONFIG.ui.colors.foggy).toBe("#475569");
-    expect(APP_CONFIG.ui.colors.active).toBe("#22D3EE");
+    expect(STATUS_COLOR_TOKENS.foggy).toBe("#475569");
+    expect(resolveStatusColor("foggy")).toBe("#475569");
+    expect(APP_CONFIG.ui.colors.active).toBe("#22d3ee");
     expect(APP_CONFIG.ui.colors.background).toBe("#020617");
   });
 
-  it("keeps Socratic gating defaults required by the safety valve", () => {
+  it("keeps Socratic gating defaults and mastery→expand auto-trigger", () => {
     expect(APP_CONFIG.features.ENABLE_SOCRATIC_GATING).toBe(true);
     expect(APP_CONFIG.features.ENABLE_INFINITE_EXPANSION).toBe(true);
+    expect(shouldTriggerExpansionOnMastery()).toBe(true);
     expect(APP_CONFIG.features.PERSISTENCE_STRATEGY).toBe("localStorage");
     expect(APP_CONFIG.features.SAFETY_VALVE_ATTEMPTS).toBe(2);
+    expect(GRAPH_EXPAND_ENDPOINT).toBe("/api/expand");
   });
 
   it("never embeds a real OpenAI key in the client-side config contract", () => {

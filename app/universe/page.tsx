@@ -5,7 +5,9 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import {
   APP_CONFIG,
+  GRAPH_EXPAND_ENDPOINT,
   UNIVERSE_SEED_QUERY_PARAM,
+  shouldTriggerExpansionOnMastery,
 } from "@/app.config";
 import MentorChatPanel from "@/components/MentorChatPanel";
 import UniverseProvider, {
@@ -47,7 +49,7 @@ function useMasteryExpansion() {
 
   useEffect(() => {
     if (!isHydrated) return;
-    if (!APP_CONFIG.features.ENABLE_INFINITE_EXPANSION) return;
+    if (!shouldTriggerExpansionOnMastery()) return;
     if (isExpanding) return;
 
     const pending = graphData.nodes.find((node) => {
@@ -67,7 +69,7 @@ function useMasteryExpansion() {
 
     void (async () => {
       try {
-        const response = await fetch("/api/expand", {
+        const response = await fetch(GRAPH_EXPAND_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

@@ -68,13 +68,19 @@ export const APP_CONFIG: AppConfig = {
   },
   ui: {
     colors: {
-      /** Mastered nodes — Emerald-500 */
-      mastered: "#10B981",
-      /** Locked / unexplored nodes — Slate-600 */
+      /**
+       * Status-Mastered — Emerald-500.
+       * When a node status becomes `mastered`, its resolved color property is this token.
+       */
+      mastered: "#10b981",
+      /**
+       * Status-Foggy — Slate-600.
+       * Expansion children from `/api/expand` initialize with status `foggy` → this color.
+       */
       foggy: "#475569",
-      /** Currently selected node — Cyan-400 */
-      active: "#22D3EE",
-      /** WebGL canvas clear color + universe backdrop — Slate-950 */
+      /** Status-Active — Cyan-400 (currently selected node). */
+      active: "#22d3ee",
+      /** Surface-Core — Slate-950 (WebGL clear + universe backdrop). */
       background: "#020617",
     },
     sidebarWidth: "384px", // w-96
@@ -101,7 +107,11 @@ export const APP_CONFIG: AppConfig = {
       3. Validate logic and output [MASTERED] only upon conceptual clarity.
       4. If user fails twice, use the [REVEALED] token and provide the answer.
     `,
-    /** Used by POST `/api/expand` with EXPANSION_MODEL; `[CONCEPT]` is substituted at request time. */
+    /**
+     * Used by POST `/api/expand` with EXPANSION_MODEL; `[CONCEPT]` is substituted at request time.
+     * Mastery (`[MASTERED]` → status `mastered` / Status-Mastered) auto-triggers this flow
+     * when `features.ENABLE_INFINITE_EXPANSION` is true.
+     */
     expansionPrompt: `
       Generate 2-3 child nodes for concept "[CONCEPT]".
       Return ONLY valid JSON: { "nodes": [...], "links": [...] }.
@@ -112,6 +122,7 @@ export const APP_CONFIG: AppConfig = {
   },
   features: {
     ENABLE_SOCRATIC_GATING: true,
+    /** Mastered nodes without children → automatic fetch to `/api/expand`. */
     ENABLE_INFINITE_EXPANSION: true,
     PERSISTENCE_STRATEGY: "localStorage",
     SAFETY_VALVE_ATTEMPTS: 2,
@@ -124,6 +135,49 @@ export const APP_CONFIG: AppConfig = {
     EXPANSION_MODEL: "gpt-4o",
   },
 };
+
+/**
+ * Design-system status color tokens (Zero Drift).
+ * Canvas / panel resolve node color from status via these APP_CONFIG values.
+ */
+export const STATUS_COLOR_TOKENS = {
+  /** Status-Mastered (#10b981) — mastered node color property. */
+  mastered: APP_CONFIG.ui.colors.mastered,
+  /** Status-Foggy (#475569) — locked / newly expanded children. */
+  foggy: APP_CONFIG.ui.colors.foggy,
+  /** Status-Active (#22d3ee) — selection highlight. */
+  active: APP_CONFIG.ui.colors.active,
+} as const;
+
+/** Semantic expansion endpoint triggered on mastery when infinite expansion is enabled. */
+export const GRAPH_EXPAND_ENDPOINT = "/api/expand" as const;
+
+/** Node lifecycle statuses that map to Status-* color tokens. */
+export type StatusColorKey = "foggy" | "mastered" | "active";
+
+/**
+ * Resolve the Zero Drift color property for a node status.
+ * - `mastered` → Status-Mastered (#10b981)
+ * - `foggy` → Status-Foggy (#475569)
+ * - `active` → Status-Active (#22d3ee)
+ */
+export function resolveStatusColor(status: StatusColorKey): string {
+  if (status === "mastered") {
+    return STATUS_COLOR_TOKENS.mastered;
+  }
+  if (status === "active") {
+    return STATUS_COLOR_TOKENS.active;
+  }
+  return STATUS_COLOR_TOKENS.foggy;
+}
+
+/**
+ * True when mastery should auto-trigger POST `/api/expand`
+ * (`APP_CONFIG.features.ENABLE_INFINITE_EXPANSION`).
+ */
+export function shouldTriggerExpansionOnMastery(): boolean {
+  return APP_CONFIG.features.ENABLE_INFINITE_EXPANSION === true;
+}
 
 /** Query param used when the Landing View hands the seed topic to `/universe`. */
 export const UNIVERSE_SEED_QUERY_PARAM = "seed" as const;

@@ -26,6 +26,22 @@ export type GraphExpansionPayload = {
   links?: MergeGraphLink[];
 };
 
+/**
+ * Force every node in an expansion payload to Status-Foggy before merge.
+ * DoD: new nodes from `/api/expand` initialize with `foggy` (#475569).
+ */
+export function forceExpansionNodesFoggy(
+  payload: GraphExpansionPayload,
+): GraphExpansionPayload {
+  return {
+    nodes: (payload.nodes ?? []).map((node) => ({
+      ...node,
+      status: "foggy" as const,
+    })),
+    links: payload.links ?? [],
+  };
+}
+
 export interface MergeGraphResult {
   /** Merged graph with Graph Integrity preserved. */
   graph: MergeGraphDataShape;
