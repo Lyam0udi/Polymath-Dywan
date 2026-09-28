@@ -10,6 +10,13 @@ import {
 } from "react";
 import { APP_CONFIG } from "@/app.config";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { ROOT_NODE_ID } from "@/lib/seed-universe";
+
+export {
+  ROOT_NODE_ID,
+  buildSeedGraph,
+  seedUniverseFromLanding,
+} from "@/lib/seed-universe";
 
 /** Node lifecycle status for the knowledge graph. */
 export type NodeStatus = "foggy" | "mastered" | "active";
@@ -28,27 +35,6 @@ export interface GraphLink {
 export interface GraphData {
   nodes: GraphNode[];
   links: GraphLink[];
-}
-
-/** Stable id for the seed / root concept node. */
-export const ROOT_NODE_ID = "root" as const;
-
-/**
- * Builds the initial graph with a single root node derived from the seed topic.
- * Falls back to `APP_CONFIG.metadata.seedTopic` when the input is blank.
- */
-export function buildSeedGraph(seedTopic?: string): GraphData {
-  const label = seedTopic?.trim() || APP_CONFIG.metadata.seedTopic;
-  return {
-    nodes: [
-      {
-        id: ROOT_NODE_ID,
-        label,
-        status: "active",
-      },
-    ],
-    links: [],
-  };
 }
 
 export interface UniverseContextValue {

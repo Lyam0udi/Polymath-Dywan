@@ -145,6 +145,10 @@ function UniverseShell() {
 
 function UniversePageContent() {
   const searchParams = useSearchParams();
+  /**
+   * Seed from Landing (`app/page.tsx` → `buildUniverseHref` + localStorage).
+   * Provider hydrates the 3D graph; mastery on this page POSTs `/api/expand`.
+   */
   const seedFromQuery =
     searchParams.get(UNIVERSE_SEED_QUERY_PARAM)?.trim() ||
     APP_CONFIG.metadata.seedTopic;
