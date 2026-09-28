@@ -2,12 +2,14 @@
 
 Local-first Socratic knowledge explorer: map a topic as a 3D force graph, unlock nodes through mentoring dialogue, and expand the graph as you master concepts.
 
+Graph state lives in the browser (`localStorage`). Mentoring and expansion call OpenAI via Next.js API routes — no external database.
+
 ## Prerequisites
 
-- Node.js **20+**
+- Node.js **20+** (`engines.node` in `package.json`)
 - An [OpenAI API key](https://platform.openai.com/api-keys)
 
-## Getting started
+## Installation
 
 ### 1. Clone
 
@@ -16,54 +18,81 @@ git clone https://github.com/Lyam0udi/Polymath-Dywan.git
 cd Polymath-Dywan
 ```
 
-### 2. Install
+### 2. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 3. Environment
+### 3. Configure environment
 
-Copy the example env file and fill in real values:
+Copy the example file and set real values (never commit `.env.local`):
 
 ```bash
 cp .env.example .env.local
 ```
 
-| Variable | Required | Description |
-| :--- | :--- | :--- |
-| `OPENAI_API_KEY` | Yes | Server-only key for the Socratic mentor and node expansion APIs |
-| `NEXT_PUBLIC_APP_URL` | No | App base URL (default `http://localhost:3000`) |
-| `DEFAULT_MODEL` | No | Mentor model (default `gpt-4o-mini`) |
-| `EXPANSION_MODEL` | No | Graph expansion model (default `gpt-4o`) |
+All variables from the environment contract:
 
-See [`.env.example`](.env.example) for placeholders. Never commit `.env.local`.
+| Variable | Required | Default | Purpose |
+| :--- | :--- | :--- | :--- |
+| `OPENAI_API_KEY` | **Yes** | _(none)_ | Server-only key for `/api/mentor` and `/api/expand` |
+| `NEXT_PUBLIC_APP_URL` | No | `http://localhost:3000` | Public origin for sitemap absolute URLs and internal routing |
+| `DEFAULT_MODEL` | No | `gpt-4o-mini` | Model used by the Socratic mentor (`/api/mentor`) |
+| `EXPANSION_MODEL` | No | `gpt-4o` | Model used for semantic node branching (`/api/expand`) |
 
-### 4. Develop
+Placeholders live in [`.env.example`](.env.example). Defaults are also mirrored under `APP_CONFIG.env` in [`app.config.ts`](app.config.ts).
+
+Without `OPENAI_API_KEY`, mentor and expand routes return **503** and the UI prompts you to open Settings / complete setup.
+
+### 4. Develop locally
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000) — seed entry is [`app/page.tsx`](app/page.tsx); the 3D universe is [`app/universe/page.tsx`](app/universe/page.tsx).
 
-### 5. Build & run production locally
+### 5. Production build (local verify)
 
 ```bash
 npm run build
 npm start
 ```
 
-## Deploy (Vercel)
+## Deploy to Vercel
 
-1. Push the repo to GitHub (already linked if you cloned from origin).
-2. Import the project in [Vercel](https://vercel.com/new).
-3. In **Project → Settings → Environment Variables**, set at least:
-   - `OPENAI_API_KEY` (Production / Preview as needed)
-   - Optionally `NEXT_PUBLIC_APP_URL`, `DEFAULT_MODEL`, `EXPANSION_MODEL`
-4. Deploy. Vercel runs `next build` automatically.
+1. Push this repo to GitHub (or connect an existing remote).
+2. Import the project in [Vercel](https://vercel.com/new) (framework: Next.js; see [`vercel.json`](vercel.json)).
+3. In **Project → Settings → Environment Variables**, set for Production (and Preview if needed):
 
-Graph state persists in the browser via `localStorage` — no external database is required.
+   | Variable | Notes |
+   | :--- | :--- |
+   | `OPENAI_API_KEY` | **Required** — do not expose as `NEXT_PUBLIC_*` |
+   | `NEXT_PUBLIC_APP_URL` | Set to your production origin, e.g. `https://your-app.vercel.app` |
+   | `DEFAULT_MODEL` | Optional; defaults to `gpt-4o-mini` |
+   | `EXPANSION_MODEL` | Optional; defaults to `gpt-4o` |
+
+4. Deploy. Vercel runs `next build` automatically. API routes `app/api/mentor` and `app/api/expand` are configured with `maxDuration: 60` in `vercel.json`.
+
+No database or Redis is required. Client graph persistence uses `localStorage` only.
+
+## Production deployment verification
+
+After deploy, confirm:
+
+| Check | Path / URL |
+| :--- | :--- |
+| Favicon | [`app/favicon.ico`](app/favicon.ico) → `https://<host>/favicon.ico` |
+| Seed / home | [`app/page.tsx`](app/page.tsx) → `https://<host>/` |
+| Universe UI | [`app/universe/page.tsx`](app/universe/page.tsx) → `https://<host>/universe` |
+| Mentor API | [`app/api/mentor/route.ts`](app/api/mentor/route.ts) → `POST /api/mentor` |
+| Expand API | [`app/api/expand/route.ts`](app/api/expand/route.ts) → `POST /api/expand` |
+| Robots | [`app/robots.txt`](app/robots.txt) → `https://<host>/robots.txt` |
+| Sitemap | [`app/sitemap.ts`](app/sitemap.ts) → `https://<host>/sitemap.xml` (uses `NEXT_PUBLIC_APP_URL`) |
+| Styles / layout | [`app/globals.css`](app/globals.css), [`app/layout.tsx`](app/layout.tsx) |
+
+Smoke flow: seed a topic → Enter Universe → select a node → chat until mastery or Reveal → confirm child nodes appear after expand.
 
 ## Scripts
 
@@ -73,3 +102,13 @@ Graph state persists in the browser via `localStorage` — no external database 
 | `npm run build` | Production build |
 | `npm start` | Serve the production build |
 | `npm run lint` | ESLint |
+| `npm test` | Unit tests (Vitest) |
+| `npm run test:e2e` / `npm run e2e` | Playwright end-to-end tests |
+
+## Architecture notes
+
+- **Config SSOT:** [`app.config.ts`](app.config.ts)
+- **Graph types:** `types/graph.ts`
+- **Persistence:** `lib/persistence/local-storage.ts` via universe store hooks
+- **3D engine:** `react-force-graph-3d` (no `@react-three/fiber`)
+- **AI:** Vercel AI SDK — streamed mentor replies; JSON expand payload with schema-safe fallbacks
