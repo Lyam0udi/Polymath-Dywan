@@ -25,6 +25,10 @@ export interface GraphNode {
   id: string;
   label: string;
   status: NodeStatus;
+  /** Pinned layout coords (force-graph fx/fy/fz). Persist so drag layout survives reload. */
+  fx?: number | null;
+  fy?: number | null;
+  fz?: number | null;
 }
 
 export interface GraphLink {

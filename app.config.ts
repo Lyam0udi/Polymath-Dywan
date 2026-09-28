@@ -38,6 +38,9 @@ export interface AppConfigGraph {
   linkParticleWidth: number;
   /** Always-on sprite label height in world units. */
   labelTextHeight: number;
+  /** Cone length for directional arrows on links. */
+  linkArrowLength: number;
+  linkArrowRelPos: number;
 }
 
 export interface AppConfigAi {
@@ -102,18 +105,23 @@ export const APP_CONFIG: AppConfig = {
   graph: {
     /** Relative node sphere radius for react-force-graph-3d */
     nodeRelSize: 6,
-    /** Edge stroke width — keep thick enough to read on slate-950 */
-    linkWidth: 2.5,
+    /**
+     * Edge cylinder radius. Values > 0 use Mesh cylinders (visible in WebGL);
+     * 0 falls back to 1px Line primitives that often disappear at distance.
+     */
+    linkWidth: 1.8,
     /** Directional particle travel speed along links */
-    particleSpeed: 0.006,
+    particleSpeed: 0.008,
     /** Initial camera Z distance after canvas mount */
     initialDistance: 80,
     /** Keep siblings clustered near the parent */
-    linkDistance: 42,
-    chargeStrength: -90,
-    linkParticles: 4,
-    linkParticleWidth: 2,
+    linkDistance: 48,
+    chargeStrength: -120,
+    linkParticles: 6,
+    linkParticleWidth: 2.5,
     labelTextHeight: 3.2,
+    linkArrowLength: 5,
+    linkArrowRelPos: 0.92,
   },
   ai: {
     socraticPrompt: `

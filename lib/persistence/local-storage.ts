@@ -18,6 +18,9 @@ const graphNodeSchema = z
     id: z.string().min(1),
     label: z.string().min(1),
     status: nodeStatusSchema,
+    fx: z.number().finite().nullable().optional(),
+    fy: z.number().finite().nullable().optional(),
+    fz: z.number().finite().nullable().optional(),
   })
   .strict();
 
@@ -54,11 +57,23 @@ export function enforceGraphIntegrity(data: GraphData): GraphData {
 
   const nodes: GraphNode[] = data.nodes
     .filter((node) => knownIds.has(node.id.trim()))
-    .map((node) => ({
-      id: node.id.trim(),
-      label: node.label.trim() || node.id.trim(),
-      status: node.status as NodeStatus,
-    }));
+    .map((node) => {
+      const next: GraphNode = {
+        id: node.id.trim(),
+        label: node.label.trim() || node.id.trim(),
+        status: node.status as NodeStatus,
+      };
+      if (typeof node.fx === "number" && Number.isFinite(node.fx)) {
+        next.fx = node.fx;
+      }
+      if (typeof node.fy === "number" && Number.isFinite(node.fy)) {
+        next.fy = node.fy;
+      }
+      if (typeof node.fz === "number" && Number.isFinite(node.fz)) {
+        next.fz = node.fz;
+      }
+      return next;
+    });
 
   const links: GraphLink[] = [];
   const seen = new Set<string>();
