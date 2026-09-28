@@ -1,13 +1,15 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import {
   APP_CONFIG,
   UNIVERSE_SEED_QUERY_PARAM,
 } from "@/app.config";
-import type { CanvasGraphData } from "@/components/UniverseCanvas";
+import UniverseProvider, {
+  useUniverseStore,
+} from "@/components/UniverseProvider";
 
 /**
  * Client-only WebGL canvas — never SSR (avoids hydration mismatch / missing WebGL).
@@ -28,41 +30,20 @@ const UniverseCanvas = dynamic(
   },
 );
 
-function buildSeedGraph(seedTopic: string): CanvasGraphData {
-  const label = seedTopic.trim() || APP_CONFIG.metadata.seedTopic;
-  return {
-    nodes: [
-      {
-        id: "root",
-        label,
-        status: "active",
-      },
-    ],
-    links: [],
-  };
-}
-
-function UniversePageContent() {
-  const searchParams = useSearchParams();
-  const seedFromQuery =
-    searchParams.get(UNIVERSE_SEED_QUERY_PARAM)?.trim() ||
-    APP_CONFIG.metadata.seedTopic;
-
-  const initialGraph = useMemo(
-    () => buildSeedGraph(seedFromQuery),
-    [seedFromQuery],
-  );
-
-  const [graphData] = useState<CanvasGraphData>(initialGraph);
-  const [activeNodeId, setActiveNodeId] = useState<string | null>("root");
+function UniverseShell() {
+  const { graphData, selectedNodeId, selectNode, selectedNode } =
+    useUniverseStore();
 
   return (
     <main className="flex min-h-screen">
-      <section className="relative min-h-screen flex-1" aria-label="Universe canvas">
+      <section
+        className="relative min-h-screen flex-1"
+        aria-label="Universe canvas"
+      >
         <UniverseCanvas
           graphData={graphData}
-          activeNodeId={activeNodeId}
-          onNodeSelect={setActiveNodeId}
+          activeNodeId={selectedNodeId}
+          onNodeSelect={selectNode}
         />
       </section>
       <aside
@@ -71,15 +52,25 @@ function UniversePageContent() {
         aria-label="Mentor panel placeholder"
       >
         <p className="text-sm text-text-muted">
-          {activeNodeId
-            ? `Selected: ${
-                graphData.nodes.find((n) => n.id === activeNodeId)?.label ??
-                activeNodeId
-              }`
+          {selectedNode
+            ? `Selected: ${selectedNode.label}`
             : "Select a node to begin."}
         </p>
       </aside>
     </main>
+  );
+}
+
+function UniversePageContent() {
+  const searchParams = useSearchParams();
+  const seedFromQuery =
+    searchParams.get(UNIVERSE_SEED_QUERY_PARAM)?.trim() ||
+    APP_CONFIG.metadata.seedTopic;
+
+  return (
+    <UniverseProvider seedTopic={seedFromQuery}>
+      <UniverseShell />
+    </UniverseProvider>
   );
 }
 
