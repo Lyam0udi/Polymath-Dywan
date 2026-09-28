@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { APP_CONFIG } from "@/app.config";
 import { expansionPrompt } from "@/lib/ai/prompts";
+import { sanitizeAiGraphData } from "@/lib/utils";
 
 /** Graph node lifecycle — matches GraphData / UniverseProvider NodeStatus. */
 const nodeStatusSchema = z.enum(["foggy", "mastered", "active"]);
@@ -21,7 +22,7 @@ const graphLinkSchema = z.object({
 
 /** Expansion payload shape — conforms to the GraphData interface. */
 const graphDataSchema = z.object({
-  nodes: z.array(graphNodeSchema),
+  nodes: z.array(graphNodeSchema).min(1).max(3),
   links: z.array(graphLinkSchema),
 });
 
@@ -38,65 +39,6 @@ interface ExpandRequestBody {
   parentNode: ExpandParentNode;
 }
 
-/**
- * Single foggy child when LLM output is missing or invalid.
- * Manifest edge: bad expand JSON → one fallback node (never crash).
- */
-function buildFallbackExpansion(parentNode: ExpandParentNode): ExpandGraphData {
-  const childId = `${parentNode.id}-related`;
-  return {
-    nodes: [
-      {
-        id: childId,
-        label: `Related to ${parentNode.label}`,
-        status: "foggy",
-      },
-    ],
-    links: [
-      {
-        source: parentNode.id,
-        target: childId,
-      },
-    ],
-  };
-}
-
-/**
- * Coerce LLM output into GraphData: force foggy status, drop broken links,
- * ensure every child has a link from the parent when links are empty.
- */
-function normalizeExpansion(
-  raw: ExpandGraphData,
-  parentNode: ExpandParentNode,
-): ExpandGraphData {
-  const nodes = raw.nodes.map((node) => ({
-    ...node,
-    status: "foggy" as const,
-  }));
-
-  if (nodes.length === 0) {
-    return buildFallbackExpansion(parentNode);
-  }
-
-  const knownIds = new Set<string>([
-    parentNode.id,
-    ...nodes.map((node) => node.id),
-  ]);
-
-  let links = raw.links.filter(
-    (link) => knownIds.has(link.source) && knownIds.has(link.target),
-  );
-
-  if (links.length === 0) {
-    links = nodes.map((node) => ({
-      source: parentNode.id,
-      target: node.id,
-    }));
-  }
-
-  return { nodes, links };
-}
-
 function fillExpansionPrompt(conceptLabel: string): string {
   return expansionPrompt.replaceAll("[CONCEPT]", conceptLabel);
 }
@@ -106,6 +48,7 @@ function fillExpansionPrompt(conceptLabel: string): string {
  * Contract: `{ parentNode }` → GraphData JSON `{ nodes, links }`.
  * System instruction: `APP_CONFIG.ai.expansionPrompt` (via prompts re-export).
  * Model: `EXPANSION_MODEL` from env, defaulting to `APP_CONFIG.env.EXPANSION_MODEL` (gpt-4o).
+ * Output is always passed through `sanitizeAiGraphData` before the response.
  */
 export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -141,10 +84,15 @@ export async function POST(request: Request) {
     );
   }
 
+  const parent = {
+    id: parentNode.id.trim(),
+    label: parentNode.label.trim(),
+  };
+
   const model =
     process.env.EXPANSION_MODEL?.trim() || APP_CONFIG.env.EXPANSION_MODEL;
 
-  const system = fillExpansionPrompt(parentNode.label.trim());
+  const system = fillExpansionPrompt(parent.label);
 
   try {
     const { object } = await generateObject({
@@ -154,14 +102,22 @@ export async function POST(request: Request) {
       schemaDescription:
         "Child knowledge-graph nodes and links for semantic expansion",
       system,
-      prompt: `Parent concept id: "${parentNode.id}". Label: "${parentNode.label}". Generate 2-3 foggy child nodes linked from this parent. Return ONLY the GraphData JSON object.`,
+      prompt: `Parent concept id: "${parent.id}". Label: "${parent.label}". Generate 2-3 foggy child nodes linked from this parent. Return ONLY the GraphData JSON object.`,
       mode: "json",
     });
 
-    const graph = normalizeExpansion(object, parentNode);
+    const graph = sanitizeAiGraphData(object, {
+      parentNode: parent,
+      forceFoggy: true,
+    });
     return NextResponse.json(graph);
   } catch {
     // Never crash the client on bad LLM / parse failures — one fallback node.
-    return NextResponse.json(buildFallbackExpansion(parentNode));
+    return NextResponse.json(
+      sanitizeAiGraphData(null, {
+        parentNode: parent,
+        forceFoggy: true,
+      }),
+    );
   }
 }

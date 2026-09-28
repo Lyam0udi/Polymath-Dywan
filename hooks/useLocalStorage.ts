@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -15,6 +16,14 @@ import {
   saveGraphToStorage,
 } from "@/lib/persistence/local-storage";
 
+export interface UseLocalStorageOptions {
+  /**
+   * When localStorage is empty / corrupt, seed the root node with this topic.
+   * Falls back to `data/local-graph.json` via `getSeedGraph()`.
+   */
+  seedTopic?: string;
+}
+
 export interface UseLocalStorageResult {
   /** Live graph synchronized with localStorage after hydration. */
   graphData: GraphData;
@@ -22,8 +31,23 @@ export interface UseLocalStorageResult {
   setGraphData: Dispatch<SetStateAction<GraphData>>;
   /** True after the first client read from localStorage (or seed). */
   isHydrated: boolean;
-  /** Clear storage and reset in-memory state to `data/local-graph.json` seed. */
+  /** Clear storage and reset in-memory state to the seed graph. */
   resetToSeed: () => void;
+}
+
+function buildSeedFromTopic(seedTopic?: string): GraphData {
+  const label = seedTopic?.trim();
+  if (!label) return getSeedGraph();
+  return {
+    nodes: [
+      {
+        id: "root",
+        label,
+        status: "active",
+      },
+    ],
+    links: [],
+  };
 }
 
 /**
@@ -31,16 +55,21 @@ export interface UseLocalStorageResult {
  * Hydrates from localStorage on mount; writes on every subsequent update.
  * Corrupt storage is handled inside `loadGraphFromStorage` (Zod → seed).
  */
-export function useLocalStorage(): UseLocalStorageResult {
-  const [graphData, setGraphDataState] = useState<GraphData>(() =>
-    getSeedGraph(),
+export function useLocalStorage(
+  options: UseLocalStorageOptions = {},
+): UseLocalStorageResult {
+  const seedGraph = useMemo(
+    () => buildSeedFromTopic(options.seedTopic),
+    [options.seedTopic],
   );
+
+  const [graphData, setGraphDataState] = useState<GraphData>(() => seedGraph);
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    setGraphDataState(loadGraphFromStorage());
+    setGraphDataState(loadGraphFromStorage(seedGraph));
     setIsHydrated(true);
-  }, []);
+  }, [seedGraph]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -56,10 +85,9 @@ export function useLocalStorage(): UseLocalStorageResult {
 
   const resetToSeed = useCallback(() => {
     clearGraphStorage();
-    const seed = getSeedGraph();
-    setGraphDataState(seed);
-    saveGraphToStorage(seed);
-  }, []);
+    setGraphDataState(seedGraph);
+    saveGraphToStorage(seedGraph);
+  }, [seedGraph]);
 
   return {
     graphData,

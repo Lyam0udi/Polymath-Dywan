@@ -14,6 +14,8 @@ export interface MentorChatPanelProps {
   activeNodeId?: string | null;
   /** Display label for the active concept. */
   activeNodeLabel?: string | null;
+  /** True while mastery-triggered `/api/expand` is in flight. */
+  isExpanding?: boolean;
 }
 
 /** Hide protocol tokens from the visible transcript. */
@@ -34,6 +36,7 @@ function displayMentorContent(content: string): string {
 export function MentorChatPanel({
   activeNodeId = null,
   activeNodeLabel = null,
+  isExpanding = false,
 }: MentorChatPanelProps) {
   const hasActiveNode =
     typeof activeNodeId === "string" &&
@@ -78,6 +81,8 @@ export function MentorChatPanel({
   /** Assistant message ids already counted toward the safety valve. */
   const countedFailureIdsRef = useRef<Set<string>>(new Set());
   const isStreaming = status === "streaming" || isLoading;
+  /** Manifest: disable Reveal while stream/expand in flight. */
+  const controlsLocked = isStreaming || isExpanding;
   const safetyValve = APP_CONFIG.features.SAFETY_VALVE_ATTEMPTS;
 
   // New concept → clear attempt counter / tokens (useChat id remounts messages).
@@ -124,7 +129,7 @@ export function MentorChatPanel({
   }, [messages, isStreaming, revealAvailable]);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
-    if (!hasActiveNode || isStreaming || !input.trim()) {
+    if (!hasActiveNode || controlsLocked || !input.trim()) {
       event.preventDefault();
       return;
     }
@@ -136,7 +141,7 @@ export function MentorChatPanel({
    * [REVEALED] protocol and unlocks the node (mastered) so gating can proceed.
    */
   async function onReveal() {
-    if (!hasActiveNode || !revealAvailable || isStreaming) return;
+    if (!hasActiveNode || !revealAvailable || controlsLocked) return;
 
     // Trigger [REVEALED] token logic, then unlock the node for Socratic gating.
     processStream(REVEALED_TOKEN, activeNodeId);
@@ -179,7 +184,7 @@ export function MentorChatPanel({
         role="log"
         aria-live="polite"
         aria-relevant="additions"
-        aria-busy={isStreaming}
+        aria-busy={controlsLocked}
       >
         {!hasActiveNode && (
           <p className="m-auto text-center text-sm text-text-muted">
@@ -234,6 +239,15 @@ export function MentorChatPanel({
             </div>
           )}
 
+        {isExpanding && (
+          <p
+            className="rounded-lg border border-active/40 bg-background px-3 py-2 text-sm text-active"
+            role="status"
+          >
+            Expanding the universe with related concepts…
+          </p>
+        )}
+
         {error && (
           <p
             className="rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm text-foggy"
@@ -262,7 +276,7 @@ export function MentorChatPanel({
             onClick={() => {
               void onReveal();
             }}
-            disabled={isStreaming}
+            disabled={controlsLocked}
             className="w-full rounded-lg border border-active/50 bg-background px-3 py-2 text-sm font-semibold text-active transition hover:bg-active/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-active disabled:cursor-not-allowed disabled:opacity-50"
             aria-label={`Reveal answer after ${safetyValve} unsuccessful attempts`}
           >
@@ -289,7 +303,7 @@ export function MentorChatPanel({
             type="text"
             value={input}
             onChange={handleInputChange}
-            disabled={!hasActiveNode || isStreaming}
+            disabled={!hasActiveNode || controlsLocked}
             placeholder={
               hasActiveNode
                 ? "Explain your reasoning…"
@@ -300,7 +314,7 @@ export function MentorChatPanel({
           />
           <button
             type="submit"
-            disabled={!hasActiveNode || isStreaming || !input.trim()}
+            disabled={!hasActiveNode || controlsLocked || !input.trim()}
             className="shrink-0 rounded-lg bg-accent-action px-3 py-2 text-sm font-semibold text-text-high-contrast transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-active disabled:cursor-not-allowed disabled:opacity-50"
           >
             Send

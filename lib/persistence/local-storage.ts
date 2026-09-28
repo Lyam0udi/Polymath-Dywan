@@ -119,10 +119,13 @@ export function saveGraphToStorage(graph: GraphData): void {
 
 /**
  * Hydrate graph from localStorage.
- * Missing key → seed. Corrupt JSON / Zod failure → clear key and reset to seed.
+ * Missing key → `fallbackSeed` (or compile-time seed). Corrupt JSON / Zod failure
+ * → clear key and reset to that same seed (fail closed, never crash).
  */
-export function loadGraphFromStorage(): GraphData {
-  const seed = getSeedGraph();
+export function loadGraphFromStorage(fallbackSeed?: GraphData): GraphData {
+  const seed = fallbackSeed
+    ? enforceGraphIntegrity(fallbackSeed)
+    : getSeedGraph();
 
   if (typeof window === "undefined") {
     return seed;

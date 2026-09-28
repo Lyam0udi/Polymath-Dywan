@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { APP_CONFIG } from "@/app.config";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 /** Node lifecycle status for the knowledge graph. */
 export type NodeStatus = "foggy" | "mastered" | "active";
@@ -65,6 +66,12 @@ export interface UniverseContextValue {
   selectedNode: GraphNode | null;
   /** Seed topic used to initialize the root node. */
   seedTopic: string;
+  /** True after localStorage hydration (avoid treating seed flash as authoritative). */
+  isHydrated: boolean;
+  /** True while POST `/api/expand` is in flight for a mastered parent. */
+  isExpanding: boolean;
+  /** Set by universe page while semantic expansion runs. */
+  setIsExpanding: (value: boolean) => void;
 }
 
 const UniverseContext = createContext<UniverseContextValue | null>(null);
@@ -72,6 +79,7 @@ const UniverseContext = createContext<UniverseContextValue | null>(null);
 /**
  * Context hook for graph data + selection.
  * Must be called under `UniverseProvider`.
+ * Wraps localStorage via `useLocalStorage` (PERSISTENCE_STRATEGY).
  */
 export function useUniverseStore(): UniverseContextValue {
   const ctx = useContext(UniverseContext);
@@ -91,7 +99,8 @@ export interface UniverseProviderProps {
 
 /**
  * Orchestrates shared universe state between the 3D canvas and the UI shell.
- * Owns seed initialization and selection; rendering stays in UniverseCanvas.
+ * Owns seed initialization, localStorage sync, and selection; rendering stays
+ * in UniverseCanvas.
  */
 export default function UniverseProvider({
   children,
@@ -100,12 +109,13 @@ export default function UniverseProvider({
   const seedTopic =
     seedTopicProp?.trim() || APP_CONFIG.metadata.seedTopic;
 
-  const [graphData, setGraphData] = useState<GraphData>(() =>
-    buildSeedGraph(seedTopic),
-  );
+  const { graphData, setGraphData, isHydrated } = useLocalStorage({
+    seedTopic,
+  });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
     ROOT_NODE_ID,
   );
+  const [isExpanding, setIsExpanding] = useState(false);
 
   const selectNode = useCallback((nodeId: string | null) => {
     setSelectedNodeId(nodeId);
@@ -124,8 +134,20 @@ export default function UniverseProvider({
       selectNode,
       selectedNode,
       seedTopic,
+      isHydrated,
+      isExpanding,
+      setIsExpanding,
     }),
-    [graphData, selectedNodeId, selectNode, selectedNode, seedTopic],
+    [
+      graphData,
+      setGraphData,
+      selectedNodeId,
+      selectNode,
+      selectedNode,
+      seedTopic,
+      isHydrated,
+      isExpanding,
+    ],
   );
 
   return (
