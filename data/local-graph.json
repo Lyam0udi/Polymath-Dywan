@@ -1,4 +1,10 @@
 {
-  "nodes": [],
+  "nodes": [
+    {
+      "id": "root",
+      "label": "Artificial Intelligence",
+      "status": "active"
+    }
+  ],
   "links": []
 }
