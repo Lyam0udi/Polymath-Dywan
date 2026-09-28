@@ -101,9 +101,12 @@ export const APP_CONFIG: AppConfig = {
       3. Validate logic and output [MASTERED] only upon conceptual clarity.
       4. If user fails twice, use the [REVEALED] token and provide the answer.
     `,
+    /** Used by POST `/api/expand` with EXPANSION_MODEL; `[CONCEPT]` is substituted at request time. */
     expansionPrompt: `
-      Generate 2-3 child nodes for concept "[CONCEPT]". 
+      Generate 2-3 child nodes for concept "[CONCEPT]".
       Return ONLY valid JSON: { "nodes": [...], "links": [...] }.
+      Each node must be { "id": string, "label": string, "status": "foggy" }.
+      Each link must be { "source": parentConceptId, "target": childNodeId }.
       Node status must be "foggy".
     `,
   },
