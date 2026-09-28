@@ -1,11 +1,60 @@
 @import "tailwindcss";
 
+/* Primary typeface (design system): Inter */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+/*
+  Design tokens aligned with APP_CONFIG.ui + Deterministic Design System.
+  Tailwind v4 @theme → utility classes (bg-mastered, text-muted, w-sidebar, …).
+  :root mirrors the same values for non-Tailwind consumers (e.g. force-graph).
+*/
 @theme {
+  /* Status / APP_CONFIG.ui.colors (Zero Drift) */
   --color-mastered: #10b981;
   --color-foggy: #475569;
   --color-active: #22d3ee;
   --color-background: #020617;
+
+  /* Surfaces & chrome */
+  --color-surface-core: #020617;
+  --color-surface-elevated: #0f172a;
+  --color-border-subtle: #1e293b;
+
+  /* Text */
+  --color-text-high-contrast: #f8fafc;
+  --color-text-muted: #94a3b8;
+
+  /* Accent */
+  --color-accent-action: #6366f1;
+
+  /* Typography */
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+
+  /* Layout (APP_CONFIG.ui) */
   --width-sidebar: 384px;
+  --breakpoint-mobile: 768px;
+}
+
+:root {
+  --color-mastered: #10b981;
+  --color-foggy: #475569;
+  --color-active: #22d3ee;
+  --color-background: #020617;
+  --color-surface-core: #020617;
+  --color-surface-elevated: #0f172a;
+  --color-border-subtle: #1e293b;
+  --color-text-high-contrast: #f8fafc;
+  --color-text-muted: #94a3b8;
+  --color-accent-action: #6366f1;
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --width-sidebar: 384px;
+  --breakpoint-mobile: 768px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 html,
@@ -14,7 +63,10 @@ body {
 }
 
 body {
-  background-color: var(--color-background);
-  color: #e2e8f0;
   margin: 0;
+  background-color: var(--color-background);
+  color: var(--color-text-high-contrast);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
