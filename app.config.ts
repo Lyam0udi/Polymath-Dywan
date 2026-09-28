@@ -1,4 +1,66 @@
-export const APP_CONFIG = {
+/**
+ * Shared application configuration — single source of truth for UI,
+ * 3D graph engine, feature toggles, env defaults, and AI prompts.
+ */
+
+export interface AppConfigMetadata {
+  title: string;
+  version: string;
+  seedTopic: string;
+}
+
+export interface AppConfigUiColors {
+  mastered: string;
+  foggy: string;
+  active: string;
+  background: string;
+}
+
+export interface AppConfigUi {
+  colors: AppConfigUiColors;
+  sidebarWidth: string;
+  breakpoints: {
+    mobile: number;
+  };
+}
+
+export interface AppConfigGraph {
+  nodeRelSize: number;
+  linkWidth: number;
+  particleSpeed: number;
+  initialDistance: number;
+}
+
+export interface AppConfigAi {
+  socraticPrompt: string;
+  expansionPrompt: string;
+}
+
+export interface AppConfigFeatures {
+  ENABLE_SOCRATIC_GATING: boolean;
+  ENABLE_INFINITE_EXPANSION: boolean;
+  PERSISTENCE_STRATEGY: "localStorage";
+  SAFETY_VALVE_ATTEMPTS: number;
+}
+
+/** Documented env contract defaults (values resolved at runtime from process.env). */
+export interface AppConfigEnvDefaults {
+  OPENAI_API_KEY: string;
+  NEXT_PUBLIC_APP_URL: string;
+  DEFAULT_MODEL: string;
+  EXPANSION_MODEL: string;
+}
+
+export interface AppConfig {
+  metadata: AppConfigMetadata;
+  ui: AppConfigUi;
+  graph: AppConfigGraph;
+  ai: AppConfigAi;
+  features: AppConfigFeatures;
+  env: AppConfigEnvDefaults;
+}
+
+export const APP_CONFIG: AppConfig = {
   metadata: {
     title: "Polymath Dywan",
     version: "1.0.0",
@@ -40,9 +102,14 @@ export const APP_CONFIG = {
   features: {
     ENABLE_SOCRATIC_GATING: true,
     ENABLE_INFINITE_EXPANSION: true,
-    PERSISTENCE_STRATEGY: "localStorage" as const,
+    PERSISTENCE_STRATEGY: "localStorage",
     SAFETY_VALVE_ATTEMPTS: 2,
   },
-} as const;
-
-export type AppConfig = typeof APP_CONFIG;
+  env: {
+    // Placeholder only — real key must live in .env.local (never commit).
+    OPENAI_API_KEY: "",
+    NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+    DEFAULT_MODEL: "gpt-4o-mini",
+    EXPANSION_MODEL: "gpt-4o",
+  },
+};
