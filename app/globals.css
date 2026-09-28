@@ -1,5 +1,4 @@
-/* Primary typeface (design system): Inter — must precede other @imports / rules */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+/* Tailwind v4 entry — Inter is applied on <body> via next/font in app/layout.tsx */
 @import "tailwindcss";
 
 /*
