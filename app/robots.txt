@@ -1,4 +1,7 @@
+# Polymath Dywan — crawl policy for Vercel / production visibility.
+# Absolute page URLs live in /sitemap.xml (app/sitemap.ts + NEXT_PUBLIC_APP_URL).
+# Disallow API routes so crawlers do not index mentor/expand endpoints.
+
 User-agent: *
 Allow: /
-
-Sitemap: http://localhost:3000/sitemap.xml
+Disallow: /api/
