@@ -113,3 +113,18 @@ export const APP_CONFIG: AppConfig = {
     EXPANSION_MODEL: "gpt-4o",
   },
 };
+
+/** Query param used when the Landing View hands the seed topic to `/universe`. */
+export const UNIVERSE_SEED_QUERY_PARAM = "seed" as const;
+
+/**
+ * Builds the `/universe` href with the user's seed topic in the query string.
+ * Falls back to `APP_CONFIG.metadata.seedTopic` when the input is blank.
+ */
+export function buildUniverseHref(seedTopic: string): string {
+  const topic = seedTopic.trim() || APP_CONFIG.metadata.seedTopic;
+  const params = new URLSearchParams({
+    [UNIVERSE_SEED_QUERY_PARAM]: topic,
+  });
+  return `/universe?${params.toString()}`;
+}
