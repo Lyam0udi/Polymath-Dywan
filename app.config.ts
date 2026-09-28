@@ -68,10 +68,14 @@ export const APP_CONFIG: AppConfig = {
   },
   ui: {
     colors: {
-      mastered: "#10B981", // Emerald-500
-      foggy: "#475569", // Slate-600
-      active: "#22D3EE", // Cyan-400
-      background: "#020617", // Slate-950
+      /** Mastered nodes — Emerald-500 */
+      mastered: "#10B981",
+      /** Locked / unexplored nodes — Slate-600 */
+      foggy: "#475569",
+      /** Currently selected node — Cyan-400 */
+      active: "#22D3EE",
+      /** WebGL canvas clear color + universe backdrop — Slate-950 */
+      background: "#020617",
     },
     sidebarWidth: "384px", // w-96
     breakpoints: {
@@ -79,9 +83,13 @@ export const APP_CONFIG: AppConfig = {
     },
   },
   graph: {
+    /** Relative node sphere radius for react-force-graph-3d */
     nodeRelSize: 6,
+    /** Edge stroke width in the 3D graph */
     linkWidth: 1,
+    /** Directional particle travel speed along links */
     particleSpeed: 0.01,
+    /** Initial camera Z distance after canvas mount */
     initialDistance: 100,
   },
   ai: {
