@@ -39,6 +39,10 @@ export type SanitizeAiGraphOptions = {
   forceFoggy?: boolean;
 };
 
+/** Phrases that cascade into "Related to Related to…" junk labels. */
+const JUNK_LABEL_PREFIX =
+  /^(related to|aspect of|topic of|overview of|part of|about)(?:\s+|$)/i;
+
 function normalizeId(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -47,6 +51,50 @@ function normalizeId(value: unknown): string | null {
 
 function linkKey(source: string, target: string): string {
   return `${source}\0${target}`;
+}
+
+/**
+ * Strip cascading "Related to …" / vague prefixes so expand children stay concrete.
+ */
+export function stripJunkLabelPrefixes(label: string): string {
+  let cleaned = label.trim().replace(/\s+/g, " ");
+  // Peel repeated junk prefixes (Related to Related to …).
+  for (let i = 0; i < 8; i += 1) {
+    const next = cleaned.replace(JUNK_LABEL_PREFIX, "").trim();
+    if (next === cleaned) break;
+    cleaned = next;
+  }
+  return cleaned;
+}
+
+/**
+ * Normalize an AI (or fallback) node label into a short concrete title.
+ */
+export function sanitizeNodeLabel(
+  label: string,
+  parentLabel?: string,
+): string {
+  let cleaned = stripJunkLabelPrefixes(label);
+
+  const parentClean = parentLabel
+    ? stripJunkLabelPrefixes(parentLabel) || "Concept"
+    : "Concept";
+
+  if (
+    !cleaned ||
+    /^related$/i.test(cleaned) ||
+    /^foundations$/i.test(cleaned) ||
+    cleaned.toLowerCase() === parentClean.toLowerCase()
+  ) {
+    cleaned = `${parentClean} foundations`;
+  }
+
+  // Soft cap for canvas sprites / mentor header.
+  if (cleaned.length > 48) {
+    cleaned = `${cleaned.slice(0, 45).trimEnd()}…`;
+  }
+
+  return cleaned;
 }
 
 /**
@@ -76,6 +124,7 @@ export function parseAiGraphJson(raw: unknown): unknown | null {
 /**
  * Single foggy child when LLM JSON is missing or fails integrity checks.
  * Manifest edge: bad expand JSON → one fallback node (never crash).
+ * Label is concrete — never "Related to …" (that cascaded in expand).
  */
 export function buildAiGraphFallback(parentNode: {
   id: string;
@@ -86,13 +135,14 @@ export function buildAiGraphFallback(parentNode: {
     typeof parentNode.label === "string" && parentNode.label.trim()
       ? parentNode.label.trim()
       : parentId;
-  const childId = `${parentId}-related`;
+  const childId = `${parentId}-foundations`;
+  const label = sanitizeNodeLabel("foundations", parentLabel);
 
   return {
     nodes: [
       {
         id: childId,
-        label: `Related to ${parentLabel}`,
+        label,
         status: "foggy",
       },
     ],
@@ -106,7 +156,11 @@ export function buildAiGraphFallback(parentNode: {
  */
 export function enforceAiGraphIntegrity(
   data: GraphData,
-  options?: { forceFoggy?: boolean; extraKnownIds?: Iterable<string> },
+  options?: {
+    forceFoggy?: boolean;
+    extraKnownIds?: Iterable<string>;
+    parentLabel?: string;
+  },
 ): GraphData {
   const forceFoggy = options?.forceFoggy !== false;
 
@@ -125,10 +179,11 @@ export function enforceAiGraphIntegrity(
     seenNodeIds.add(id);
     knownIds.add(id);
 
-    const label =
+    const rawLabel =
       typeof node.label === "string" && node.label.trim().length > 0
         ? node.label.trim()
         : id;
+    const label = sanitizeNodeLabel(rawLabel, options?.parentLabel);
 
     const status: NodeStatus = forceFoggy
       ? "foggy"
@@ -164,6 +219,7 @@ export function enforceAiGraphIntegrity(
  * - Parses string or object input without throwing
  * - Zod-validates `{ nodes, links }`
  * - Enforces Graph Integrity (valid endpoints, no self-loops, unique ids)
+ * - Rewrites junk "Related to…" labels into concrete titles
  * - Forces child status to `foggy` by default
  * - On total failure with `parentNode`, returns one fallback foggy child
  * - On total failure without `parentNode`, returns `{ nodes: [], links: [] }`
@@ -203,6 +259,7 @@ export function sanitizeAiGraphData(
   const sanitized = enforceAiGraphIntegrity(candidate, {
     forceFoggy,
     extraKnownIds: parentNode ? [parentNode.id] : undefined,
+    parentLabel: parentNode?.label,
   });
 
   if (sanitized.nodes.length === 0) {

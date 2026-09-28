@@ -33,11 +33,12 @@ describe("APP_CONFIG", () => {
     expect(GRAPH_EXPAND_ENDPOINT).toBe("/api/expand");
   });
 
-  it("never embeds a real OpenAI key in the client-side config contract", () => {
-    // Environment Variable Security: real key lives in server .env.local only.
+  it("never embeds real API keys in the client-side config contract", () => {
+    // Environment Variable Security: real keys live in server .env.local only.
     expect(APP_CONFIG.env.OPENAI_API_KEY).toBe("");
-    expect(APP_CONFIG.env.DEFAULT_MODEL).toBe("gpt-4o-mini");
-    expect(APP_CONFIG.env.EXPANSION_MODEL).toBe("gpt-4o");
+    expect(APP_CONFIG.env.GOOGLE_GENERATIVE_AI_API_KEY).toBe("");
+    expect(APP_CONFIG.env.DEFAULT_MODEL).toBe("gemini-3.5-flash");
+    expect(APP_CONFIG.env.EXPANSION_MODEL).toBe("gemini-3.1-pro-preview");
     expect(APP_CONFIG.env.NEXT_PUBLIC_APP_URL).toBe("http://localhost:3000");
   });
 

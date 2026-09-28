@@ -1,8 +1,11 @@
-import { openai } from "@ai-sdk/openai";
 import { streamText, type Message } from "ai";
 import { NextResponse } from "next/server";
 import { APP_CONFIG } from "@/app.config";
 import { socraticPrompt } from "@/lib/ai/prompts";
+import {
+  missingProviderKeyError,
+  resolveLanguageModel,
+} from "@/lib/ai/provider";
 import { createMentorStreamResponse } from "@/lib/ai/stream-handler";
 
 /** Active graph node context for the Socratic loop. */
@@ -21,17 +24,15 @@ interface MentorRequestBody {
  * POST /api/mentor — stream Socratic mentor replies via Vercel AI SDK.
  * Contract: `{ messages, activeNode }` → data stream for `useChat`.
  * System message is always `socraticPrompt` from `lib/ai/prompts.ts` (APP_CONFIG SSOT).
+ * Provider is inferred from `DEFAULT_MODEL` (Gemini → Google, otherwise OpenAI).
  */
 export async function POST(request: Request) {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) {
-    return NextResponse.json(
-      {
-        error:
-          "OPENAI_API_KEY is not configured. Open Settings and set the key in .env.local.",
-      },
-      { status: 503 },
-    );
+  const model =
+    process.env.DEFAULT_MODEL?.trim() || APP_CONFIG.env.DEFAULT_MODEL;
+
+  const keyError = missingProviderKeyError(model);
+  if (keyError) {
+    return NextResponse.json({ error: keyError }, { status: 503 });
   }
 
   let body: MentorRequestBody;
@@ -63,9 +64,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const model =
-    process.env.DEFAULT_MODEL?.trim() || APP_CONFIG.env.DEFAULT_MODEL;
-
   // Sole system message: APP_CONFIG.ai.socraticPrompt via prompts re-export.
   // Includes "Never give direct answers" and mastery/reveal tokens.
   // Strip any client-sent system roles so the Socratic contract cannot be overridden.
@@ -79,7 +77,7 @@ Focus all Socratic inquiry on this concept.`;
     .map(({ role, content }) => ({ role, content }));
 
   const result = streamText({
-    model: openai(model),
+    model: resolveLanguageModel(model),
     system,
     messages: conversation,
   });

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import ForceGraph3D, {
   type ForceGraphMethods,
 } from "react-force-graph-3d";
+import SpriteText from "three-spritetext";
 import { APP_CONFIG } from "@/app.config";
 
 /** Minimal graph node shape for canvas rendering (full schema lives in types/graph.ts later). */
@@ -13,11 +14,14 @@ export interface CanvasNode {
   id: string;
   label: string;
   status: CanvasNodeStatus;
+  x?: number;
+  y?: number;
+  z?: number;
 }
 
 export interface CanvasLink {
-  source: string;
-  target: string;
+  source: string | CanvasNode;
+  target: string | CanvasNode;
 }
 
 export interface CanvasGraphData {
@@ -53,9 +57,9 @@ function resolveNodeColor(
  * Must be loaded via `next/dynamic` with `{ ssr: false }` to avoid hydration mismatch.
  *
  * Design tokens (APP_CONFIG):
- * - ui.colors.background → WebGL clear / container backdrop (#020617)
- * - graph.nodeRelSize / linkWidth / particleSpeed → force-graph props
- * - graph.initialDistance → camera Z on first mount
+ * - ui.colors.background → WebGL clear / container backdrop
+ * - ui.colors.active → link stroke (readable on slate-950)
+ * - graph.* → node size, link width, forces, labels, camera
  */
 export default function UniverseCanvas({
   graphData,
@@ -83,20 +87,60 @@ export default function UniverseCanvas({
     return () => observer.disconnect();
   }, []);
 
-  const { nodeRelSize, linkWidth, particleSpeed, initialDistance } =
-    APP_CONFIG.graph;
-  const { background } = APP_CONFIG.ui.colors;
+  const {
+    nodeRelSize,
+    linkWidth,
+    particleSpeed,
+    initialDistance,
+    linkDistance,
+    chargeStrength,
+    linkParticles,
+    linkParticleWidth,
+    labelTextHeight,
+  } = APP_CONFIG.graph;
+  const { background, active } = APP_CONFIG.ui.colors;
 
-  // Position camera once the WebGL instance is ready (seed / first paint).
+  // Tight link / charge forces so expanded children stay near their parent.
   useEffect(() => {
-    if (size.width <= 0 || size.height <= 0 || cameraInitialized.current) {
-      return;
-    }
+    const fg = fgRef.current;
+    if (!fg || size.width <= 0) return;
+
+    const linkForce = fg.d3Force("link") as
+      | { distance?: (d: number) => unknown }
+      | undefined;
+    linkForce?.distance?.(linkDistance);
+
+    const chargeForce = fg.d3Force("charge") as
+      | { strength?: (s: number) => unknown }
+      | undefined;
+    chargeForce?.strength?.(chargeStrength);
+
+    fg.d3ReheatSimulation();
+  }, [size.width, size.height, linkDistance, chargeStrength, graphData]);
+
+  // Position camera once, then zoom-to-fit whenever the graph grows.
+  useEffect(() => {
+    if (size.width <= 0 || size.height <= 0) return;
     const fg = fgRef.current;
     if (!fg) return;
-    fg.cameraPosition({ x: 0, y: 0, z: initialDistance });
-    cameraInitialized.current = true;
-  }, [size.width, size.height, initialDistance, graphData]);
+
+    if (!cameraInitialized.current) {
+      fg.cameraPosition({ x: 0, y: 0, z: initialDistance });
+      cameraInitialized.current = true;
+    }
+
+    const timer = window.setTimeout(() => {
+      fg.zoomToFit(400, 48);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    size.width,
+    size.height,
+    initialDistance,
+    graphData.nodes.length,
+    graphData.links.length,
+  ]);
 
   // Re-paint node materials when inquiry selection changes so Status-Active
   // (#22D3EE via APP_CONFIG.ui.colors.active) applies and prior nodes revert.
@@ -124,10 +168,28 @@ export default function UniverseCanvas({
           nodeColor={(node) =>
             resolveNodeColor(node as CanvasNode, activeNodeId)
           }
+          nodeThreeObject={(node) => {
+            const canvasNode = node as CanvasNode;
+            const sprite = new SpriteText(canvasNode.label || canvasNode.id);
+            sprite.color = resolveNodeColor(canvasNode, activeNodeId);
+            sprite.textHeight = labelTextHeight;
+            sprite.padding = 1.2;
+            sprite.borderRadius = 2;
+            sprite.backgroundColor = background;
+            sprite.strokeWidth = 0.3;
+            sprite.strokeColor = background;
+            // Offset label above the sphere (sphere stays via nodeThreeObjectExtend).
+            sprite.position.y = nodeRelSize + labelTextHeight;
+            return sprite;
+          }}
+          nodeThreeObjectExtend
           linkWidth={linkWidth}
-          linkColor={() => APP_CONFIG.ui.colors.foggy}
-          linkDirectionalParticles={2}
+          linkColor={() => active}
+          linkOpacity={0.85}
+          linkDirectionalParticles={linkParticles}
+          linkDirectionalParticleWidth={linkParticleWidth}
           linkDirectionalParticleSpeed={particleSpeed}
+          linkDirectionalParticleColor={() => active}
           showNavInfo={false}
           onNodeClick={(node) => {
             const id = (node as CanvasNode).id;

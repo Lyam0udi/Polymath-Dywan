@@ -3,32 +3,36 @@
 import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
 import { X } from "lucide-react";
 import { APP_CONFIG } from "@/app.config";
+import { ALL_MODEL_OPTIONS } from "@/lib/ai/models";
 
 /** localStorage key for AI model / key preferences. */
 export const SETTINGS_STORAGE_KEY = "polymath-dywan-settings" as const;
 
 /** Runtime AI preferences persisted client-side. */
 export interface AiSettings {
-  /** Client-held copy for setup UX. Server routes still require `.env.local`. */
+  /** Client-held OpenAI key hint for setup UX. Server still requires `.env.local`. */
   openaiApiKey: string;
+  /** Client-held Google AI Studio key hint. Server needs `GOOGLE_GENERATIVE_AI_API_KEY`. */
+  googleApiKey: string;
   defaultModel: string;
   expansionModel: string;
 }
 
-const MODEL_OPTIONS = [
-  "gpt-4o-mini",
-  "gpt-4o",
-  "gpt-4.1-mini",
-  "gpt-4.1",
-  "o4-mini",
-] as const;
-
 function defaultSettings(): AiSettings {
   return {
     openaiApiKey: "",
+    googleApiKey: "",
     defaultModel: APP_CONFIG.env.DEFAULT_MODEL,
     expansionModel: APP_CONFIG.env.EXPANSION_MODEL,
   };
+}
+
+/** True when the user has configured at least one provider key in the browser. */
+export function hasClientProviderKey(settings: AiSettings): boolean {
+  return (
+    settings.openaiApiKey.trim().length > 0 ||
+    settings.googleApiKey.trim().length > 0
+  );
 }
 
 /** Read settings from localStorage; corrupt/missing → APP_CONFIG defaults. */
@@ -43,6 +47,8 @@ export function loadAiSettings(): AiSettings {
     return {
       openaiApiKey:
         typeof parsed.openaiApiKey === "string" ? parsed.openaiApiKey : "",
+      googleApiKey:
+        typeof parsed.googleApiKey === "string" ? parsed.googleApiKey : "",
       defaultModel:
         typeof parsed.defaultModel === "string" && parsed.defaultModel.trim()
           ? parsed.defaultModel
@@ -72,17 +78,19 @@ export interface SettingsModalProps {
 }
 
 /**
- * Settings modal — OPENAI_API_KEY input + DEFAULT_MODEL / EXPANSION_MODEL selects.
+ * Settings modal — OpenAI + Google keys + DEFAULT_MODEL / EXPANSION_MODEL selects.
  * Preferences persist in localStorage (`SETTINGS_STORAGE_KEY`).
- * The live API key for `/api/mentor` and `/api/expand` must also be set in `.env.local`.
+ * Live API keys for `/api/mentor` and `/api/expand` must also be set in `.env.local`.
  */
 export function SettingsModal({ open, onClose, onSave }: SettingsModalProps) {
   const titleId = useId();
-  const keyFieldId = useId();
+  const openaiKeyFieldId = useId();
+  const googleKeyFieldId = useId();
   const defaultModelId = useId();
   const expansionModelId = useId();
 
   const [openaiApiKey, setOpenaiApiKey] = useState("");
+  const [googleApiKey, setGoogleApiKey] = useState("");
   const [defaultModel, setDefaultModel] = useState(
     APP_CONFIG.env.DEFAULT_MODEL,
   );
@@ -95,6 +103,7 @@ export function SettingsModal({ open, onClose, onSave }: SettingsModalProps) {
     if (!open) return;
     const loaded = loadAiSettings();
     setOpenaiApiKey(loaded.openaiApiKey);
+    setGoogleApiKey(loaded.googleApiKey);
     setDefaultModel(loaded.defaultModel);
     setExpansionModel(loaded.expansionModel);
     setSavedFlash(false);
@@ -114,6 +123,7 @@ export function SettingsModal({ open, onClose, onSave }: SettingsModalProps) {
       event.preventDefault();
       const next: AiSettings = {
         openaiApiKey: openaiApiKey.trim(),
+        googleApiKey: googleApiKey.trim(),
         defaultModel: defaultModel.trim() || APP_CONFIG.env.DEFAULT_MODEL,
         expansionModel:
           expansionModel.trim() || APP_CONFIG.env.EXPANSION_MODEL,
@@ -122,19 +132,14 @@ export function SettingsModal({ open, onClose, onSave }: SettingsModalProps) {
       setSavedFlash(true);
       onSave?.(next);
     },
-    [openaiApiKey, defaultModel, expansionModel, onSave],
+    [openaiApiKey, googleApiKey, defaultModel, expansionModel, onSave],
   );
 
   if (!open) return null;
 
-  const modelChoices = Array.from(
-    new Set<string>([
-      ...MODEL_OPTIONS,
-      APP_CONFIG.env.DEFAULT_MODEL,
-      APP_CONFIG.env.EXPANSION_MODEL,
-      defaultModel,
-      expansionModel,
-    ]),
+  const knownIds = new Set(ALL_MODEL_OPTIONS.map((m) => m.id));
+  const extraModels = [defaultModel, expansionModel].filter(
+    (id) => id.trim() && !knownIds.has(id),
   );
 
   return (
@@ -164,8 +169,9 @@ export function SettingsModal({ open, onClose, onSave }: SettingsModalProps) {
               Settings
             </h2>
             <p className="mt-1 text-sm text-text-muted">
-              Choose AI models and configure your OpenAI key for the Socratic
-              mentor.
+              Choose Gemini (free) or OpenAI models. Keys in this browser are
+              setup hints — server routes read{" "}
+              <code className="text-active">.env.local</code>.
             </p>
           </div>
           <button
@@ -180,18 +186,45 @@ export function SettingsModal({ open, onClose, onSave }: SettingsModalProps) {
 
         <form
           onSubmit={handleSubmit}
-          className="flex flex-col gap-4"
+          className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto"
           aria-label="AI settings"
         >
           <div className="flex flex-col gap-1.5">
             <label
-              htmlFor={keyFieldId}
+              htmlFor={googleKeyFieldId}
+              className="text-sm font-medium text-text-high-contrast"
+            >
+              GOOGLE_GENERATIVE_AI_API_KEY
+            </label>
+            <input
+              id={googleKeyFieldId}
+              name="googleApiKey"
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              value={googleApiKey}
+              onChange={(event) => setGoogleApiKey(event.target.value)}
+              placeholder="AIza…"
+              className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm text-text-high-contrast outline-none transition placeholder:text-text-muted focus:border-active focus:ring-2 focus:ring-active/40"
+            />
+            <p className="text-xs text-text-muted">
+              Free key from{" "}
+              <span className="text-active">aistudio.google.com/apikey</span>.
+              Also set in{" "}
+              <code className="text-active">.env.local</code> for{" "}
+              <code className="text-active">gemini-*</code> models.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor={openaiKeyFieldId}
               className="text-sm font-medium text-text-high-contrast"
             >
               OPENAI_API_KEY
             </label>
             <input
-              id={keyFieldId}
+              id={openaiKeyFieldId}
               name="openaiApiKey"
               type="password"
               autoComplete="off"
@@ -202,9 +235,9 @@ export function SettingsModal({ open, onClose, onSave }: SettingsModalProps) {
               className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm text-text-high-contrast outline-none transition placeholder:text-text-muted focus:border-active focus:ring-2 focus:ring-active/40"
             />
             <p className="text-xs text-text-muted">
-              Stored in this browser for setup. Server routes also need{" "}
-              <code className="text-active">OPENAI_API_KEY</code> in{" "}
-              <code className="text-active">.env.local</code>.
+              Optional if you use Gemini. Required for{" "}
+              <code className="text-active">gpt-*</code> /{" "}
+              <code className="text-active">o*</code> models.
             </p>
           </div>
 
@@ -222,14 +255,34 @@ export function SettingsModal({ open, onClose, onSave }: SettingsModalProps) {
               onChange={(event) => setDefaultModel(event.target.value)}
               className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm text-text-high-contrast outline-none transition focus:border-active focus:ring-2 focus:ring-active/40"
             >
-              {modelChoices.map((model) => (
-                <option key={`default-${model}`} value={model}>
+              <optgroup label="Google Gemini (free)">
+                {ALL_MODEL_OPTIONS.filter((m) => m.provider === "google").map(
+                  (model) => (
+                    <option key={`default-${model.id}`} value={model.id}>
+                      {model.label}
+                    </option>
+                  ),
+                )}
+              </optgroup>
+              <optgroup label="OpenAI">
+                {ALL_MODEL_OPTIONS.filter((m) => m.provider === "openai").map(
+                  (model) => (
+                    <option key={`default-${model.id}`} value={model.id}>
+                      {model.label}
+                    </option>
+                  ),
+                )}
+              </optgroup>
+              {extraModels.map((model) => (
+                <option key={`default-extra-${model}`} value={model}>
                   {model}
                 </option>
               ))}
             </select>
             <p className="text-xs text-text-muted">
-              Used by the Socratic mentor chat loop.
+              Used by the Socratic mentor chat loop. Mirror in{" "}
+              <code className="text-active">.env.local</code> as{" "}
+              <code className="text-active">DEFAULT_MODEL</code>.
             </p>
           </div>
 
@@ -247,14 +300,33 @@ export function SettingsModal({ open, onClose, onSave }: SettingsModalProps) {
               onChange={(event) => setExpansionModel(event.target.value)}
               className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm text-text-high-contrast outline-none transition focus:border-active focus:ring-2 focus:ring-active/40"
             >
-              {modelChoices.map((model) => (
-                <option key={`expansion-${model}`} value={model}>
+              <optgroup label="Google Gemini (free)">
+                {ALL_MODEL_OPTIONS.filter((m) => m.provider === "google").map(
+                  (model) => (
+                    <option key={`expansion-${model.id}`} value={model.id}>
+                      {model.label}
+                    </option>
+                  ),
+                )}
+              </optgroup>
+              <optgroup label="OpenAI">
+                {ALL_MODEL_OPTIONS.filter((m) => m.provider === "openai").map(
+                  (model) => (
+                    <option key={`expansion-${model.id}`} value={model.id}>
+                      {model.label}
+                    </option>
+                  ),
+                )}
+              </optgroup>
+              {extraModels.map((model) => (
+                <option key={`expansion-extra-${model}`} value={model}>
                   {model}
                 </option>
               ))}
             </select>
             <p className="text-xs text-text-muted">
-              Used when mastery expands the knowledge graph.
+              Used when mastery expands the knowledge graph. Mirror as{" "}
+              <code className="text-active">EXPANSION_MODEL</code>.
             </p>
           </div>
 

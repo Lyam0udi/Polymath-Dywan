@@ -2,12 +2,12 @@
 
 Local-first Socratic knowledge explorer: map a topic as a 3D force graph, unlock nodes through mentoring dialogue, and expand the graph as you master concepts.
 
-Graph state lives in the browser (`localStorage`). Mentoring and expansion call OpenAI via Next.js API routes — no external database.
+Graph state lives in the browser (`localStorage`). Mentoring and expansion call Google Gemini and/or OpenAI via Next.js API routes — no external database.
 
 ## Prerequisites
 
 - Node.js **20+** (`engines.node` in `package.json`)
-- An [OpenAI API key](https://platform.openai.com/api-keys)
+- A free [Google AI Studio API key](https://aistudio.google.com/apikey) **or** an [OpenAI API key](https://platform.openai.com/api-keys) (or both)
 
 ## Installation
 
@@ -36,14 +36,16 @@ All variables from the environment contract:
 
 | Variable | Required | Default | Purpose |
 | :--- | :--- | :--- | :--- |
-| `OPENAI_API_KEY` | **Yes** | _(none)_ | Server-only key for `/api/mentor` and `/api/expand` |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | One of Google / OpenAI | _(none)_ | Server-only Google AI Studio key for `gemini-*` models |
+| `OPENAI_API_KEY` | One of Google / OpenAI | _(none)_ | Server-only key for `gpt-*` / `o*` models |
 | `NEXT_PUBLIC_APP_URL` | No | `http://localhost:3000` | Public origin for sitemap absolute URLs and internal routing |
-| `DEFAULT_MODEL` | No | `gpt-4o-mini` | Model used by the Socratic mentor (`/api/mentor`) |
-| `EXPANSION_MODEL` | No | `gpt-4o` | Model used for semantic node branching (`/api/expand`) |
+| `DEFAULT_MODEL` | No | `gemini-3.5-flash` | Model used by the Socratic mentor (`/api/mentor`) |
+| `EXPANSION_MODEL` | No | `gemini-3.1-pro-preview` | Model used for semantic node branching (`/api/expand`) |
+| `AI_PROVIDER` | No | _(inferred)_ | Optional force: `google` \| `openai` |
 
 Placeholders live in [`.env.example`](.env.example). Defaults are also mirrored under `APP_CONFIG.env` in [`app.config.ts`](app.config.ts).
 
-Without `OPENAI_API_KEY`, mentor and expand routes return **503** and the UI prompts you to open Settings / complete setup.
+Provider is inferred from the model id (`gemini-*` → Google). Without the matching key, mentor and expand routes return **503** and the UI prompts you to open Settings / complete setup.
 
 ### 4. Develop locally
 

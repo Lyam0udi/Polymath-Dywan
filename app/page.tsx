@@ -4,7 +4,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Settings } from "lucide-react";
 import { APP_CONFIG, buildUniverseHref } from "@/app.config";
-import SettingsModal, { loadAiSettings } from "@/components/SettingsModal";
+import SettingsModal, {
+  hasClientProviderKey,
+  loadAiSettings,
+} from "@/components/SettingsModal";
 import { seedUniverseFromLanding } from "@/lib/seed-universe";
 
 /**
@@ -21,7 +24,7 @@ export default function HomePage() {
 
   useEffect(() => {
     const settings = loadAiSettings();
-    const configured = settings.openaiApiKey.trim().length > 0;
+    const configured = hasClientProviderKey(settings);
     setHasClientKey(configured);
     // Missing key → force Settings / clear setup UX (assembly contract).
     if (!configured) {
@@ -38,7 +41,7 @@ export default function HomePage() {
 
   function handleSettingsSaved() {
     const settings = loadAiSettings();
-    setHasClientKey(settings.openaiApiKey.trim().length > 0);
+    setHasClientKey(hasClientProviderKey(settings));
   }
 
   return (
@@ -74,10 +77,11 @@ export default function HomePage() {
             role="status"
           >
             Set{" "}
+            <code className="text-active">GOOGLE_GENERATIVE_AI_API_KEY</code>{" "}
+            (free Gemini) or{" "}
             <code className="text-active">OPENAI_API_KEY</code> in Settings and
             in{" "}
-            <code className="text-active">.env.local</code> (or your production
-            host env) so the mentor and{" "}
+            <code className="text-active">.env.local</code> so the mentor and{" "}
             <code className="text-active">/api/expand</code> can run.
           </p>
         ) : null}

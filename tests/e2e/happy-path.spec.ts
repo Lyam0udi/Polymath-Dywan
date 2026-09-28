@@ -32,8 +32,9 @@ async function seedClientSettings(page: Page) {
       settingsKey: SETTINGS_STORAGE_KEY,
       settings: {
         openaiApiKey: "sk-e2e-test-placeholder",
-        defaultModel: "gpt-4o-mini",
-        expansionModel: "gpt-4o",
+        googleApiKey: "AIza-e2e-test-placeholder",
+        defaultModel: "gemini-3.5-flash",
+        expansionModel: "gemini-3.1-pro-preview",
       },
     },
   );

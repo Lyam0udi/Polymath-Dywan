@@ -29,6 +29,15 @@ export interface AppConfigGraph {
   linkWidth: number;
   particleSpeed: number;
   initialDistance: number;
+  /** Target distance between linked nodes (d3 link force). */
+  linkDistance: number;
+  /** Repulsion strength between nodes (d3 charge force; negative = repel). */
+  chargeStrength: number;
+  /** Moving particles along each link for visibility. */
+  linkParticles: number;
+  linkParticleWidth: number;
+  /** Always-on sprite label height in world units. */
+  labelTextHeight: number;
 }
 
 export interface AppConfigAi {
@@ -46,6 +55,8 @@ export interface AppConfigFeatures {
 /** Documented env contract defaults (values resolved at runtime from process.env). */
 export interface AppConfigEnvDefaults {
   OPENAI_API_KEY: string;
+  /** Google AI Studio key — used when DEFAULT/EXPANSION models are `gemini-*`. */
+  GOOGLE_GENERATIVE_AI_API_KEY: string;
   NEXT_PUBLIC_APP_URL: string;
   DEFAULT_MODEL: string;
   EXPANSION_MODEL: string;
@@ -91,12 +102,18 @@ export const APP_CONFIG: AppConfig = {
   graph: {
     /** Relative node sphere radius for react-force-graph-3d */
     nodeRelSize: 6,
-    /** Edge stroke width in the 3D graph */
-    linkWidth: 1,
+    /** Edge stroke width — keep thick enough to read on slate-950 */
+    linkWidth: 2.5,
     /** Directional particle travel speed along links */
-    particleSpeed: 0.01,
+    particleSpeed: 0.006,
     /** Initial camera Z distance after canvas mount */
-    initialDistance: 100,
+    initialDistance: 80,
+    /** Keep siblings clustered near the parent */
+    linkDistance: 42,
+    chargeStrength: -90,
+    linkParticles: 4,
+    linkParticleWidth: 2,
+    labelTextHeight: 3.2,
   },
   ai: {
     socraticPrompt: `
@@ -115,6 +132,11 @@ export const APP_CONFIG: AppConfig = {
     expansionPrompt: `
       Generate 2-3 child nodes for concept "[CONCEPT]".
       Return ONLY valid JSON: { "nodes": [...], "links": [...] }.
+      Label rules (critical):
+      - Use concrete domain terms only (e.g. "Machine Learning", "Neural Networks").
+      - Max 4 words per label.
+      - NEVER use "Related to", "Aspect of", "Topic of", "Overview of", or recursive / nested phrasing.
+      - Do not paraphrase or repeat the parent label; each child must be a real subtopic or adjacent concept.
       Each node must be { "id": string, "label": string, "status": "foggy" }.
       Each link must be { "source": parentConceptId, "target": childNodeId }.
       Node status must be "foggy".
@@ -128,11 +150,14 @@ export const APP_CONFIG: AppConfig = {
     SAFETY_VALVE_ATTEMPTS: 2,
   },
   env: {
-    // Placeholder only — real key must live in .env.local (never commit).
+    // Placeholders only — real keys must live in .env.local (never commit).
     OPENAI_API_KEY: "",
+    GOOGLE_GENERATIVE_AI_API_KEY: "",
     NEXT_PUBLIC_APP_URL: "http://localhost:3000",
-    DEFAULT_MODEL: "gpt-4o-mini",
-    EXPANSION_MODEL: "gpt-4o",
+    // Prefer free-tier Gemini Flash for the Socratic loop; override via .env.local.
+    DEFAULT_MODEL: "gemini-3.5-flash",
+    // Stronger model for semantic graph branching (still Google free-tier friendly).
+    EXPANSION_MODEL: "gemini-3.1-pro-preview",
   },
 };
 

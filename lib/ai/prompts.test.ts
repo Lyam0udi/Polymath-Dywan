@@ -33,6 +33,8 @@ describe("lib/ai/prompts", () => {
       expect(expansionPrompt).toContain('"links"');
       expect(expansionPrompt).toContain('"foggy"');
       expect(expansionPrompt).toMatch(/ONLY valid JSON/i);
+      expect(expansionPrompt).toMatch(/NEVER use "Related to"/i);
+      expect(expansionPrompt).toMatch(/concrete domain terms/i);
     });
   });
 

@@ -1,9 +1,12 @@
-import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { APP_CONFIG } from "@/app.config";
 import { expansionPrompt } from "@/lib/ai/prompts";
+import {
+  missingProviderKeyError,
+  resolveLanguageModel,
+} from "@/lib/ai/provider";
 import { sanitizeAiGraphData } from "@/lib/utils";
 
 /** Graph node lifecycle — matches GraphData / UniverseProvider NodeStatus. */
@@ -47,19 +50,16 @@ function fillExpansionPrompt(conceptLabel: string): string {
  * POST /api/expand — semantic child-node generation via Vercel AI SDK.
  * Contract: `{ parentNode }` → GraphData JSON `{ nodes, links }`.
  * System instruction: `APP_CONFIG.ai.expansionPrompt` (via prompts re-export).
- * Model: `EXPANSION_MODEL` from env, defaulting to `APP_CONFIG.env.EXPANSION_MODEL` (gpt-4o).
+ * Model: `EXPANSION_MODEL` from env (Gemini → Google, otherwise OpenAI).
  * Output is always passed through `sanitizeAiGraphData` before the response.
  */
 export async function POST(request: Request) {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) {
-    return NextResponse.json(
-      {
-        error:
-          "OPENAI_API_KEY is not configured. Open Settings and set the key in .env.local.",
-      },
-      { status: 503 },
-    );
+  const model =
+    process.env.EXPANSION_MODEL?.trim() || APP_CONFIG.env.EXPANSION_MODEL;
+
+  const keyError = missingProviderKeyError(model);
+  if (keyError) {
+    return NextResponse.json({ error: keyError }, { status: 503 });
   }
 
   let body: ExpandRequestBody;
@@ -89,14 +89,11 @@ export async function POST(request: Request) {
     label: parentNode.label.trim(),
   };
 
-  const model =
-    process.env.EXPANSION_MODEL?.trim() || APP_CONFIG.env.EXPANSION_MODEL;
-
   const system = fillExpansionPrompt(parent.label);
 
   try {
     const { object } = await generateObject({
-      model: openai(model),
+      model: resolveLanguageModel(model),
       schema: graphDataSchema,
       schemaName: "GraphData",
       schemaDescription:
